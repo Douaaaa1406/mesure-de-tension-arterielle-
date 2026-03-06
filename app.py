@@ -28,11 +28,13 @@ def init_db():
     c.execute("SELECT COUNT(*) FROM mesures")
     if c.fetchone()[0] == 0:
         anciennes_valeurs = [
+             (175, 103, 56,0.0 , "2026-03-04 17:45", "Sans traitement zanidip; Vertige"),
             (150, 100, 0,  1.33, "2026-03-06 14:10", "vertige apres prière lors du marche"),
             (157, 107, 52, 0.0,  "2026-03-06 16:30", "Ancienne mesure"),
             (150, 100, 69, 0.0,  "2026-03-06 19:00", "avant iftar"),
             (154, 98,  0,  0.0,  "2026-03-06 19:52", "Ancienne mesure"),
             (138, 100, 68, 0.0,  "2026-03-06 20:30", "Apres iftar avec 1cp 10mg de zanidip")
+            (151, 100, 73, 2.76,  "2026-03-06 20:30", "2 H Apres iftar avec 1cp 10mg de zanidip")
         ]
         c.executemany("INSERT INTO mesures (systolique, diastolique, battements, glycemie, date_heure, notes) VALUES (?, ?, ?, ?, ?, ?)", anciennes_valeurs)
     
