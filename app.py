@@ -22,11 +22,13 @@ def init_db():
     if c.fetchone()[0] == 0:
         # Insertion des données du 06/03/2026 fournies
         anciennes_valeurs = [
-            (150, 100, 0,  1.33, "2026-03-06 14:10", "Ancienne mesure"),
+           
+            (150, 100, 0,  1.33, "2026-03-06 14:10", "vertige apres prière lors du marche "),
             (157, 107, 52, 0.0,  "2026-03-06 16:30", "Ancienne mesure"),
-            (150, 100, 69, 0.0,  "2026-03-06 19:00", "Ancienne mesure"),
+            (150, 100, 69, 0.0,  "2026-03-06 19:00", "avant iftar"),
             (154, 98,  0,  0.0,  "2026-03-06 19:52", "Ancienne mesure"),
-            (138, 100, 68, 0.0,  "2026-03-06 20:30", "Ancienne mesure")
+             (138, 100, 68, 0.0,  "2026-03-06 20:30", "Apres iftar avec 1cp 10mg de zanidip")
+            
         ]
         c.executemany("INSERT INTO mesures (systolique, diastolique, battements, glycemie, date_heure, notes) VALUES (?, ?, ?, ?, ?, ?)", anciennes_valeurs)
     
