@@ -110,7 +110,7 @@ with col_saisie:
             dt_comb = datetime.combine(d, t)
             conn = sqlite3.connect('suivi_houbad_v15.db')
             date_str = dt_comb.strftime("%Y-%m-%d %H:%M")
-            conn.cursor().execute("INSERT INTO埋 mesures (systolique, diastolique, battements, glycemie, date_heure, notes) VALUES (?, ?, ?, ?, ?, ?)",
+            conn.cursor().execute("INSERT INTO mesures (systolique, diastolique, battements, glycemie, date_heure, notes) VALUES (?, ?, ?, ?, ?, ?)",
                                   (s, di, b, g, date_str, n))
             conn.commit()
             conn.close()
