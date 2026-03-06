@@ -3,46 +3,34 @@ import sqlite3
 import pandas as pd
 from datetime import datetime
 
-# --- CONFIGURATION ---
+# Configuration de base (sans fioritures pour éviter les erreurs)
 st.set_page_config(page_title="Suivi Houbad Med", layout="wide")
 
-# --- LOGIQUE BASE DE DONNÉES ---
+# Initialisation de la base de données
 def init_db():
-    conn = sqlite3.connect('sante_houbad_v4.db')
+    conn = sqlite3.connect('suivi_houbad_v5.db')
     c = conn.cursor()
+    # Ajout de la colonne 'notes' dans la table mesures
     c.execute('''CREATE TABLE IF NOT EXISTS mesures 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
                   systolique INTEGER, diastolique INTEGER, 
-                  battements INTEGER, glycemie REAL, date_heure TEXT)''')
+                  battements INTEGER, glycemie REAL, 
+                  date_heure TEXT, notes TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS antecedents (id INTEGER PRIMARY KEY, texte TEXT)''')
     conn.commit()
     conn.close()
 
-def ajouter_mesure(sys, dia, bpm, gly, dt):
-    conn = sqlite3.connect('sante_houbad_v4.db')
+def ajouter_mesure(sys, dia, bpm, gly, dt, notes):
+    conn = sqlite3.connect('suivi_houbad_v5.db')
     c = conn.cursor()
     date_str = dt.strftime("%Y-%m-%d %H:%M")
-    c.execute("INSERT INTO mesures (systolique, diastolique, battements, glycemie, date_heure) VALUES (?, ?, ?, ?, ?)",
-              (sys, dia, bpm, gly, date_str))
-    conn.commit()
-    conn.close()
-
-def supprimer_mesure(id_m):
-    conn = sqlite3.connect('sante_houbad_v4.db')
-    c = conn.cursor()
-    c.execute("DELETE FROM mesures WHERE id = ?", (id_m,))
-    conn.commit()
-    conn.close()
-
-def sauver_ant(t):
-    conn = sqlite3.connect('sante_houbad_v4.db')
-    c = conn.cursor()
-    c.execute("INSERT OR REPLACE INTO antecedents (id, texte) VALUES (1, ?)", (t,))
+    c.execute("INSERT INTO mesures (systolique, diastolique, battements, glycemie, date_heure, notes) VALUES (?, ?, ?, ?, ?, ?)",
+              (sys, dia, bpm, gly, date_str, notes))
     conn.commit()
     conn.close()
 
 def charger_data():
-    conn = sqlite3.connect('sante_houbad_v4.db')
+    conn = sqlite3.connect('suivi_houbad_v5.db')
     df = pd.read_sql_query("SELECT * FROM mesures ORDER BY date_heure DESC", conn)
     ant = conn.cursor().execute("SELECT texte FROM antecedents WHERE id=1").fetchone()
     conn.close()
@@ -51,57 +39,76 @@ def charger_data():
 init_db()
 df_mesures, text_ant = charger_data()
 
-# --- INTERFACE SIMPLE (SANS HTML COMPLEXE) ---
-st.title("🩺 Patient : Houbad Med")
-st.markdown("---")
+# --- INTERFACE ---
+st.title("🩺 Suivi Patient : Houbad Med")
+
+# Section Antécédents (Toujours visible en haut)
+with st.expander("👨‍👩‍👧‍👦 Antécédents Familiaux (Cliquez pour modifier)", expanded=False):
+    with st.form("form_ant"):
+        nouveau_ant = st.text_area("Notes sur l'historique familial :", value=text_ant)
+        if st.form_submit_button("Sauvegarder Antécédents"):
+            conn = sqlite3.connect('suivi_houbad_v5.db')
+            conn.cursor().execute("INSERT OR REPLACE INTO antecedents (id, texte) VALUES (1, ?)", (nouveau_ant,))
+            conn.commit()
+            conn.close()
+            st.rerun()
+
+st.divider()
 
 col1, col2 = st.columns([1, 2])
 
 with col1:
-    st.header("📝 Saisie & Infos")
-    
-    # Antécédents
-    exp = st.expander("👨‍👩‍👧‍👦 Antécédents Familiaux", expanded=True)
-    with exp:
-        new_txt = st.text_area("Notes :", value=text_ant, height=100)
-        if st.button("Enregistrer Notes"):
-            sauver_ant(new_txt)
-            st.rerun()
-
-    st.subheader("➕ Ajouter Mesure")
-    with st.form("form_med"):
-        d = st.date_input("Date", datetime.now())
-        t = st.time_input("Heure", datetime.now().time())
-        val_sys = st.number_input("Systolique (SYS)", 40, 250, 120)
-        val_dia = st.number_input("Diastolique (DIA)", 30, 150, 80)
-        val_bpm = st.number_input("Pouls (BPM)", 30, 200, 70)
-        val_gly = st.number_input("Glycémie (g/L)", 0.0, 5.0, 1.0, step=0.01)
+    st.subheader("➕ Nouvelle Saisie")
+    with st.form("form_saisie", clear_on_submit=True):
+        st.write("### Date et Heure")
+        d = st.date_input("Date de la mesure", datetime.now())
+        t = st.time_input("Heure de la mesure", datetime.now().time())
         
-        if st.form_submit_button("VALIDER"):
+        st.write("### Valeurs")
+        c1, c2 = st.columns(2)
+        with c1:
+            s = st.number_input("SYS", 40, 250, 120)
+            b = st.number_input("Pouls", 30, 200, 70)
+        with c2:
+            di = st.number_input("DIA", 30, 150, 80)
+            g = st.number_input("Glycémie", 0.0, 5.0, 1.0, step=0.01)
+        
+        # AJOUT DE LA CASE NOTES
+        n = st.text_input("Notes / Observations (ex: après manger, fatigue...)")
+        
+        if st.form_submit_button("ENREGISTRER"):
             dt_comb = datetime.combine(d, t)
-            ajouter_mesure(val_sys, val_dia, val_bpm, val_gly, dt_comb)
+            ajouter_mesure(s, di, b, g, dt_comb, n)
             st.rerun()
 
 with col2:
-    st.header("📊 Historique")
-    
+    st.subheader("📊 Historique des Mesures")
     if not df_mesures.empty:
-        # Dernières valeurs
+        # Affichage du dernier relevé
         last = df_mesures.iloc[0]
-        c_a, c_b, c_c = st.columns(3)
-        c_a.metric("Tension", f"{int(last['systolique'])}/{int(last['diastolique'])}")
-        c_b.metric("Glycémie", f"{last['glycemie']} g/L")
-        c_c.metric("Date", last['date_heure'])
+        st.info(f"Dernier relevé le {last['date_heure']} : {int(last['systolique'])}/{int(last['diastolique'])} mmHg, {last['glycemie']} g/L")
+        
+        # On affiche le tableau
+        # On renomme pour que ce soit plus joli
+        df_display = df_mesures.drop(columns=['id']).rename(columns={
+            "systolique": "SYS",
+            "diastolique": "DIA",
+            "battements": "Pouls",
+            "glycemie": "Glycémie",
+            "date_heure": "Date/Heure",
+            "notes": "Observations"
+        })
+        st.dataframe(df_display, use_container_width=True)
 
-        st.write("")
-        st.dataframe(df_mesures.drop(columns=['id']), use_container_width=True)
-
-        # Suppression
+        # Bouton de suppression simplifié
         with st.expander("🗑️ Supprimer une ligne"):
-            to_del = st.selectbox("Sélectionner la mesure", options=df_mesures['id'].tolist(),
+            to_del = st.selectbox("Choisir la ligne à effacer", options=df_mesures['id'].tolist(),
                                   format_func=lambda x: df_mesures.loc[df_mesures['id']==x, 'date_heure'].values[0])
-            if st.button("Confirmer Suppression"):
-                supprimer_mesure(to_del)
+            if st.button("Confirmer la suppression"):
+                conn = sqlite3.connect('suivi_houbad_v5.db')
+                conn.cursor().execute("DELETE FROM mesures WHERE id = ?", (to_del,))
+                conn.commit()
+                conn.close()
                 st.rerun()
     else:
-        st.write("Aucune donnée pour le moment.")
+        st.write("Aucune donnée enregistrée.")
