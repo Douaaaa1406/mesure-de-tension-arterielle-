@@ -139,7 +139,7 @@ with col_historique:
             to_del = st.number_input("Entrez l'ID de la ligne", min_value=1, step=1)
             if st.button("Confirmer Suppression"):
                 conn = sqlite3.connect('suivi_houbad_v15.db')
-                conn.cursor().execute("DELETE FROM埋 mesures WHERE id = ?", (to_del,))
+                conn.cursor().execute("DELETE FROM mesures WHERE id = ?", (to_del,))
                 conn.commit()
                 conn.close()
                 st.rerun()
