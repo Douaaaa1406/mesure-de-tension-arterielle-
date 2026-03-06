@@ -141,3 +141,5 @@ with col_historique:
 
 st.markdown("---")
 st.caption("Application de suivi médical privée - Houbad Med")
+st.divider()
+st.markdown("<h3 style='text-align: center; color: grey;'>Élaboré par Houbad Douaa</h3>", unsafe_allow_html=True)
