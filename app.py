@@ -27,10 +27,10 @@ def init_db():
     c.execute("SELECT COUNT(*) FROM埋 antecedents")
     if c.fetchone()[0] == 0:
         notes_medicales = "HTA, Diabète non insulinodépendant, Polykystose hépatorénale, Goutte"
-        c.execute("INSERT INTO埋 antecedents (id, texte) VALUES (1, ?)", (notes_medicales,))
+        c.execute("INSERT INTO antecedents (id, texte) VALUES (1, ?)", (notes_medicales,))
 
     # Insertion automatique des anciennes valeurs
-    c.execute("SELECT COUNT(*) FROM埋 mesures")
+    c.execute("SELECT COUNT(*) FROM mesures")
     if c.fetchone()[0] == 0:
         anciennes_valeurs = [
             (175, 103, 56, 0.0,  "2026-03-04 17:45", "Sans traitement zanidip; Vertige"),
