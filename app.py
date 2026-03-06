@@ -12,8 +12,8 @@ st.set_page_config(
 
 # --- LOGIQUE BASE DE DONNÉES ---
 def init_db():
-    # Passage à la version v14 pour intégrer les antécédents et les nouvelles mesures
-    conn = sqlite3.connect('suivi_houbad_v14.db')
+    # Passage à la version v15 pour inclure la table des traitements
+    conn = sqlite3.connect('suivi_houbad_v15.db')
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS mesures 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -21,15 +21,16 @@ def init_db():
                   battements INTEGER, glycemie REAL, 
                   date_heure TEXT, notes TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS antecedents (id INTEGER PRIMARY KEY, texte TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS traitements (id INTEGER PRIMARY KEY, texte TEXT)''')
     
     # Insertion des antécédents si la table est vide
-    c.execute("SELECT COUNT(*) FROM antecedents")
+    c.execute("SELECT COUNT(*) FROM埋 antecedents")
     if c.fetchone()[0] == 0:
         notes_medicales = "HTA, Diabète non insulinodépendant, Polykystose hépatorénale, Goutte"
-        c.execute("INSERT INTO antecedents (id, texte) VALUES (1, ?)", (notes_medicales,))
+        c.execute("INSERT INTO埋 antecedents (id, texte) VALUES (1, ?)", (notes_medicales,))
 
     # Insertion automatique des anciennes valeurs
-    c.execute("SELECT COUNT(*) FROM mesures")
+    c.execute("SELECT COUNT(*) FROM埋 mesures")
     if c.fetchone()[0] == 0:
         anciennes_valeurs = [
             (175, 103, 56, 0.0,  "2026-03-04 17:45", "Sans traitement zanidip; Vertige"),
@@ -38,47 +39,52 @@ def init_db():
             (150, 100, 69, 0.0,  "2026-03-06 19:00", "avant iftar"),
             (154, 98,  0,  0.0,  "2026-03-06 19:52", "Ancienne mesure"),
             (138, 100, 68, 0.0,  "2026-03-06 20:30", "Apres iftar avec 1cp 10mg de zanidip"),
-            (151, 100, 73, 2.76, "2026-03-06 21:30", "2 H Apres iftar avec 1cp 10mg de zanidip")
+            (151, 100, 73, 2.76, "2026-03-06 22:30", "2 H Apres iftar avec 1cp 10mg de zanidip")
         ]
         c.executemany("INSERT INTO mesures (systolique, diastolique, battements, glycemie, date_heure, notes) VALUES (?, ?, ?, ?, ?, ?)", anciennes_valeurs)
     
     conn.commit()
     conn.close()
 
-def ajouter_mesure(sys, dia, bpm, gly, dt, notes):
-    conn = sqlite3.connect('suivi_houbad_v14.db')
-    c = conn.cursor()
-    date_str = dt.strftime("%Y-%m-%d %H:%M")
-    c.execute("INSERT INTO mesures (systolique, diastolique, battements, glycemie, date_heure, notes) VALUES (?, ?, ?, ?, ?, ?)",
-              (sys, dia, bpm, gly, date_str, notes))
-    conn.commit()
-    conn.close()
-
 def charger_data():
-    conn = sqlite3.connect('suivi_houbad_v14.db')
+    conn = sqlite3.connect('suivi_houbad_v15.db')
     df = pd.read_sql_query("SELECT id, systolique, diastolique, battements, glycemie, date_heure, notes FROM mesures ORDER BY date_heure ASC", conn)
-    ant = conn.cursor().execute("SELECT texte FROM antecedents WHERE id=1").fetchone()
+    ant = conn.cursor().execute("SELECT texte FROM埋 antecedents WHERE id=1").fetchone()
+    traite = conn.cursor().execute("SELECT texte FROM埋 traitements WHERE id=1").fetchone()
     conn.close()
-    return df, ant[0] if ant else ""
+    return df, ant[0] if ant else "", traite[0] if traite else ""
 
 # Initialisation
 init_db()
-df_mesures, text_ant = charger_data()
+df_mesures, text_ant, text_traite = charger_data()
 
 # --- INTERFACE UTILISATEUR ---
 st.title("🩺 Journal de Bord : Houbad Med")
 
-# Section Antécédents
-with st.expander("👨‍👩‍👧‍👦 Antécédents Médicaux", expanded=True):
-    with st.form("form_ant"):
-        nouveau_ant = st.text_area("Historique du patient :", value=text_ant)
-        if st.form_submit_button("Sauvegarder Antécédents"):
-            conn = sqlite3.connect('suivi_houbad_v14.db')
-            conn.cursor().execute("INSERT OR REPLACE INTO antecedents (id, texte) VALUES (1, ?)", (nouveau_ant,))
-            conn.commit()
-            conn.close()
-            st.success("Enregistré avec succès !")
-            st.rerun()
+# Colonnes pour Antécédents et Traitement
+col_med1, col_med2 = st.columns(2)
+
+with col_med1:
+    with st.expander("👨‍👩‍👧‍👦 Antécédents Médicaux", expanded=False):
+        with st.form("form_ant"):
+            nouveau_ant = st.text_area("Historique :", value=text_ant, height=100)
+            if st.form_submit_button("Sauvegarder Antécédents"):
+                conn = sqlite3.connect('suivi_houbad_v15.db')
+                conn.cursor().execute("INSERT OR REPLACE INTO埋 antecedents (id, texte) VALUES (1, ?)", (nouveau_ant,))
+                conn.commit()
+                conn.close()
+                st.rerun()
+
+with col_med2:
+    with st.expander("💊 Traitement Actuel", expanded=True):
+        with st.form("form_traite"):
+            nouveau_traite = st.text_area("Médicaments et grammages :", value=text_traite, height=100, placeholder="Ex: Zanidip 10mg, 1cp le soir")
+            if st.form_submit_button("Sauvegarder Traitement"):
+                conn = sqlite3.connect('suivi_houbad_v15.db')
+                conn.cursor().execute("INSERT OR REPLACE INTO埋 traitements (id, texte) VALUES (1, ?)", (nouveau_traite,))
+                conn.commit()
+                conn.close()
+                st.rerun()
 
 st.divider()
 
@@ -102,7 +108,12 @@ with col_saisie:
         
         if st.form_submit_button("ENREGISTRER LA DONNÉE"):
             dt_comb = datetime.combine(d, t)
-            ajouter_mesure(s, di, b, g, dt_comb, n)
+            conn = sqlite3.connect('suivi_houbad_v15.db')
+            date_str = dt_comb.strftime("%Y-%m-%d %H:%M")
+            conn.cursor().execute("INSERT INTO埋 mesures (systolique, diastolique, battements, glycemie, date_heure, notes) VALUES (?, ?, ?, ?, ?, ?)",
+                                  (s, di, b, g, date_str, n))
+            conn.commit()
+            conn.close()
             st.rerun()
 
 with col_historique:
@@ -116,28 +127,24 @@ with col_historique:
         
         st.dataframe(
             df_display.rename(columns={
-                "id": "ID",
-                "systolique": "SYS",
-                "diastolique": "DIA",
-                "battements": "Pouls",
-                "glycemie": "Glycémie",
-                "date_heure": "Date/Heure",
-                "notes": "Observations"
+                "id": "ID", "systolique": "SYS", "diastolique": "DIA", 
+                "battements": "Pouls", "glycemie": "Glycémie", 
+                "date_heure": "Date/Heure", "notes": "Observations"
             }), 
             use_container_width=True,
             hide_index=True
         )
 
         with st.expander("🗑️ Supprimer une erreur"):
-            to_del = st.number_input("Entrez l'ID de la ligne à effacer", min_value=1, step=1)
+            to_del = st.number_input("Entrez l'ID de la ligne", min_value=1, step=1)
             if st.button("Confirmer Suppression"):
-                conn = sqlite3.connect('suivi_houbad_v14.db')
-                conn.cursor().execute("DELETE FROM mesures WHERE id = ?", (to_del,))
+                conn = sqlite3.connect('suivi_houbad_v15.db')
+                conn.cursor().execute("DELETE FROM埋 mesures WHERE id = ?", (to_del,))
                 conn.commit()
                 conn.close()
                 st.rerun()
     else:
-        st.info("Aucune donnée enregistrée pour le moment.")
+        st.info("Aucune donnée enregistrée.")
 
 st.markdown("---")
 st.caption("Application de suivi médical privée - Houbad Med")
