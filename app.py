@@ -24,7 +24,7 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS traitements (id INTEGER PRIMARY KEY, texte TEXT)''')
     
     # Insertion des antécédents si la table est vide
-    c.execute("SELECT COUNT(*) FROM埋 antecedents")
+    c.execute("SELECT COUNT(*) FROM antecedents")
     if c.fetchone()[0] == 0:
         notes_medicales = "HTA, Diabète non insulinodépendant, Polykystose hépatorénale, Goutte"
         c.execute("INSERT INTO antecedents (id, texte) VALUES (1, ?)", (notes_medicales,))
@@ -49,8 +49,8 @@ def init_db():
 def charger_data():
     conn = sqlite3.connect('suivi_houbad_v15.db')
     df = pd.read_sql_query("SELECT id, systolique, diastolique, battements, glycemie, date_heure, notes FROM mesures ORDER BY date_heure ASC", conn)
-    ant = conn.cursor().execute("SELECT texte FROM埋 antecedents WHERE id=1").fetchone()
-    traite = conn.cursor().execute("SELECT texte FROM埋 traitements WHERE id=1").fetchone()
+    ant = conn.cursor().execute("SELECT texte FROM antecedents WHERE id=1").fetchone()
+    traite = conn.cursor().execute("SELECT texte FROM traitements WHERE id=1").fetchone()
     conn.close()
     return df, ant[0] if ant else "", traite[0] if traite else ""
 
@@ -81,7 +81,7 @@ with col_med2:
             nouveau_traite = st.text_area("Médicaments et grammages :", value=text_traite, height=100, placeholder="Ex: Zanidip 10mg, 1cp le soir")
             if st.form_submit_button("Sauvegarder Traitement"):
                 conn = sqlite3.connect('suivi_houbad_v15.db')
-                conn.cursor().execute("INSERT OR REPLACE INTO埋 traitements (id, texte) VALUES (1, ?)", (nouveau_traite,))
+                conn.cursor().execute("INSERT OR REPLACE INTO traitements (id, texte) VALUES (1, ?)", (nouveau_traite,))
                 conn.commit()
                 conn.close()
                 st.rerun()
