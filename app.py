@@ -39,7 +39,7 @@ def init_db():
             (150, 100, 69, 0.0,  "2026-03-06 19:00", "avant iftar"),
             (154, 98,  0,  0.0,  "2026-03-06 19:52", "Ancienne mesure"),
             (138, 100, 68, 0.0,  "2026-03-06 20:30", "Apres iftar avec 1cp 10mg de zanidip"),
-            (133, 90, 71, 2.76, "2026-03-06 22:20", "2 H Apres iftar avec 1cp 10mg de zanidip")
+     
         ]
         c.executemany("INSERT INTO mesures (systolique, diastolique, battements, glycemie, date_heure, notes) VALUES (?, ?, ?, ?, ?, ?)", anciennes_valeurs)
     
