@@ -22,7 +22,6 @@ def init_db():
     c.execute('''CREATE TABLE IF NOT EXISTS antecedents (id INTEGER PRIMARY KEY, texte TEXT)''')
     c.execute('''CREATE TABLE IF NOT EXISTS traitements (id INTEGER PRIMARY KEY, texte TEXT)''')
     
-    # Insertion des données historiques si vide
     c.execute("SELECT COUNT(*) FROM mesures")
     if c.fetchone()[0] == 0:
         anciennes_valeurs = [
@@ -50,7 +49,7 @@ df_mesures, text_ant, text_traite = charger_data()
 # --- INTERFACE ---
 st.title("🩺 Journal de Bord : Houbad Med")
 
-# --- SECTION 1 : INFORMATIONS MÉDICALES FIXES ---
+# --- SECTION 1 : DOSSIER MÉDICAL (Antécédents et Traitements séparés) ---
 st.subheader("📋 Dossier Médical")
 col_ant, col_traite = st.columns(2)
 
@@ -110,7 +109,7 @@ with col_modif:
         ligne = df_mesures[df_mesures["id"] == id_sel].iloc[0]
         
         with st.form("form_edit"):
-            new_dt = st.text_input("Date/Heure", value=ligne["date_heure"])
+            new_dt = st.text_input("Date/Heure", value=str(ligne["date_heure"]))
             cc1, cc2 = st.columns(2)
             with cc1:
                 new_s = st.number_input("SYS", value=int(ligne["systolique"]))
@@ -118,7 +117,7 @@ with col_modif:
             with cc2:
                 new_b = st.number_input("Pouls", value=int(ligne["battements"]))
                 new_g = st.number_input("Glycémie", value=float(ligne["glycemie"]))
-            new_n = st.text_input("Note", value=ligne["notes"])
+            new_n = st.text_input("Note", value=str(ligne["notes"]))
             
             if st.form_submit_button("APPLIQUER LES MODIFICATIONS"):
                 conn = sqlite3.connect('suivi_houbad_v18.db')
@@ -129,15 +128,12 @@ with col_modif:
                 conn.close()
                 st.rerun()
     else:
-        st.write("Rien à modifier")
+        st.write("Aucune donnée à modifier.")
 
 st.divider()
 
 # --- SECTION 3 : HISTORIQUE ---
 st.subheader("📋 Historique Complet")
-
-
-[Image of blood pressure categories chart]
 
 if not df_mesures.empty:
     st.dataframe(
