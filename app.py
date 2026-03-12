@@ -1,110 +1,128 @@
 import streamlit as st
-from streamlit_gsheets import GSheetsConnection
+import sqlite3
 import pandas as pd
 from datetime import datetime
 
-# --- CONFIGURATION ---
-st.set_page_config(page_title="Suivi Santé - Houbad Med", layout="wide")
+# --- CONFIGURATION DE LA PAGE ---
+st.set_page_config(
+    page_title="Suivi Santé - Houbad Med",
+    page_icon="🩺",
+    layout="wide"
+)
 
-# Données de secours (récupérées de tes photos)
-data_recuperee = [
-    {"ID": 1, "SYS": 175, "DIA": 103, "Pouls": 56, "Glycemie": 0.0, "Date_Heure": "04/03/2026 17:45", "Notes": "Sans traitement; Vertige"},
-    {"ID": 2, "SYS": 150, "DIA": 100, "Pouls": 0, "Glycemie": 1.33, "Date_Heure": "06/03/2026 14:10", "Notes": "vertige apres prière"},
-    {"ID": 3, "SYS": 157, "DIA": 107, "Pouls": 52, "Glycemie": 0.0, "Date_Heure": "06/03/2026 16:30", "Notes": "Ancienne mesure"},
-    {"ID": 4, "SYS": 150, "DIA": 100, "Pouls": 69, "Glycemie": 0.0, "Date_Heure": "06/03/2026 19:00", "Notes": "avant iftar"},
-    {"ID": 5, "SYS": 154, "DIA": 98, "Pouls": 0, "Glycemie": 0.0, "Date_Heure": "06/03/2026 19:52", "Notes": "Ancienne mesure"},
-    {"ID": 6, "SYS": 138, "DIA": 100, "Pouls": 68, "Glycemie": 0.0, "Date_Heure": "06/03/2026 20:30", "Notes": "Apres iftar (Zanidip)"},
-    {"ID": 7, "SYS": 113, "DIA": 85, "Pouls": 70, "Glycemie": 2.29, "Date_Heure": "11/03/2026 21:00", "Notes": "Récupérée de photo"},
-    {"ID": 8, "SYS": 133, "DIA": 90, "Pouls": 71, "Glycemie": 2.76, "Date_Heure": "06/03/2026 21:25", "Notes": "2H après Iftar"},
-    {"ID": 9, "SYS": 135, "DIA": 86, "Pouls": 63, "Glycemie": 0.0, "Date_Heure": "07/03/2026 04:56", "Notes": "Shor"}
-]
+# --- LOGIQUE BASE DE DONNÉES ---
+def init_db():
+    # Utilisation de la version 12 pour inclure toutes les corrections
+    conn = sqlite3.connect('suivi_houbad_v12.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS mesures 
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                  systolique INTEGER, diastolique INTEGER, 
+                  battements INTEGER, glycemie REAL, 
+                  date_heure TEXT, notes TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS antecedents (id INTEGER PRIMARY KEY, texte TEXT)''')
+    
+    c.execute("SELECT COUNT(*) FROM mesures")
+    if c.fetchone()[0] == 0:
+        # Données historiques avec tes notes précises
+        anciennes_valeurs = [
+            (150, 100, 0,  1.33, "2026-03-06 14:10", "vertige apres prière lors du marche"),
+            (157, 107, 52, 0.0,  "2026-03-06 16:30", "Ancienne mesure"),
+            (150, 100, 69, 0.0,  "2026-03-06 19:00", "avant iftar"),
+            (154, 98,  0,  0.0,  "2026-03-06 19:52", "Ancienne mesure"),
+            (138, 100, 68, 0.0,  "2026-03-06 20:30", "Apres iftar avec 1cp 10mg de zanidip")
+        ]
+        c.executemany("INSERT INTO mesures (systolique, diastolique, battements, glycemie, date_heure, notes) VALUES (?, ?, ?, ?, ?, ?)", anciennes_valeurs)
+    
+    conn.commit()
+    conn.close()
 
-try:
-    conn = st.connection("gsheets", type=GSheetsConnection)
-    df_mesures = conn.read(worksheet="Mesures", ttl="0")
-    if df_mesures.empty:
-        df_mesures = pd.DataFrame(data_recuperee)
-except Exception:
-    df_mesures = pd.DataFrame(data_recuperee)
+def ajouter_mesure(sys, dia, bpm, gly, dt, notes):
+    conn = sqlite3.connect('suivi_houbad_v12.db')
+    c = conn.cursor()
+    date_str = dt.strftime("%Y-%m-%d %H:%M")
+    c.execute("INSERT INTO mesures (systolique, diastolique, battements, glycemie, date_heure, notes) VALUES (?, ?, ?, ?, ?, ?)",
+              (sys, dia, bpm, gly, date_str, notes))
+    conn.commit()
+    conn.close()
 
+def charger_data():
+    conn = sqlite3.connect('suivi_houbad_v12.db')
+    # Tri chronologique (ASC) pour l'organisation par heure
+    df = pd.read_sql_query("SELECT id, systolique, diastolique, battements, glycemie, date_heure, notes FROM mesures ORDER BY date_heure ASC", conn)
+    ant = conn.cursor().execute("SELECT texte FROM antecedents WHERE id=1").fetchone()
+    conn.close()
+    return df, ant[0] if ant else ""
+
+init_db()
+df_mesures, text_ant = charger_data()
+
+# --- INTERFACE ---
 st.title("🩺 Journal de Bord : Houbad Med")
 
-# --- ONGLETS POUR NAVIGUER ---
-tab1, tab2 = st.tabs(["➕ Ajouter / Historique", "📝 Modifier une donnée"])
+with st.expander("👨‍👩‍👧‍👦 Antécédents Familiaux", expanded=False):
+    with st.form("form_ant"):
+        nouveau_ant = st.text_area("Notes sur l'historique familial :", value=text_ant)
+        if st.form_submit_button("Sauvegarder"):
+            conn = sqlite3.connect('suivi_houbad_v12.db')
+            conn.cursor().execute("INSERT OR REPLACE INTO antecedents (id, texte) VALUES (1, ?)", (nouveau_ant,))
+            conn.commit()
+            conn.close()
+            st.rerun()
 
-with tab1:
-    col1, col2 = st.columns([1, 2])
+st.divider()
 
-    with col1:
-        st.subheader("➕ Nouvelle Mesure")
-        with st.form("form_saisie", clear_on_submit=True):
-            # Saisie manuelle de la date et l'heure
-            date_texte = st.text_input("Date (ex: 12/03/2026)", datetime.now().strftime("%d/%m/%Y"))
-            heure_texte = st.text_input("Heure (ex: 14:30)", datetime.now().strftime("%H:%M"))
-            
-            s_val = st.number_input("SYS", 40, 250, 120)
-            di_val = st.number_input("DIA", 30, 150, 80)
-            p_val = st.number_input("Pouls", 0, 200, 70)
-            g_val = st.number_input("Glycémie", 0.0, 5.0, 0.0, step=0.01)
-            o_val = st.text_input("Observations")
-            
-            if st.form_submit_button("ENREGISTRER"):
-                new_row = pd.DataFrame([{
-                    "ID": int(df_mesures["ID"].max() + 1 if not df_mesures.empty else 1),
-                    "SYS": s_val, "DIA": di_val, "Pouls": p_val, "Glycemie": g_val,
-                    "Date_Heure": f"{date_texte} {heure_texte}",
-                    "Notes": o_val
-                }])
-                df_mesures = pd.concat([df_mesures, new_row], ignore_index=True)
-                try:
-                    conn.update(worksheet="Mesures", data=df_mesures)
-                    st.success("Synchronisé avec succès !")
-                except:
-                    st.warning("Enregistré localement uniquement.")
-                st.rerun()
+col_saisie, col_historique = st.columns([1, 2], gap="large")
 
-    with col2:
-        st.subheader("📋 Historique Permanent")
-        if not df_mesures.empty:
-            st.dataframe(df_mesures.iloc[::-1], use_container_width=True, hide_index=True)
+with col_saisie:
+    st.subheader("➕ Ajouter une Mesure")
+    with st.form("form_saisie", clear_on_submit=True):
+        d = st.date_input("Date", datetime.now())
+        t = st.time_input("Heure (HH:MM)", datetime.now().time())
+        c1, c2 = st.columns(2)
+        with c1:
+            s = st.number_input("SYS", 40, 250, 120)
+            b = st.number_input("Pouls (BPM)", 0, 200, 70)
+        with c2:
+            di = st.number_input("DIA", 30, 150, 80)
+            g = st.number_input("Glycémie (g/L)", 0.0, 5.0, 0.0, step=0.01)
+        
+        n = st.text_input("Observations")
+        if st.form_submit_button("ENREGISTRER"):
+            dt_comb = datetime.combine(d, t)
+            ajouter_mesure(s, di, b, g, dt_comb, n)
+            st.rerun()
 
-with tab2:
-    st.subheader("📝 Modifier ou Corriger une ligne")
+with col_historique:
+    st.subheader("📋 Historique Organisé par Heure")
+    
     if not df_mesures.empty:
-        id_a_modifier = st.selectbox("Sélectionnez l'ID de la mesure à modifier", df_mesures["ID"].tolist())
+        df_display = df_mesures.copy()
+        df_display['date_heure'] = df_display['date_heure'].apply(
+            lambda x: datetime.strptime(x, "%Y-%m-%d %H:%M").strftime("%d/%m/%Y %H:%M")
+        )
         
-        # Récupérer les données actuelles de la ligne choisie
-        ligne_actuelle = df_mesures[df_mesures["ID"] == id_a_modifier].iloc[0]
-        
-        with st.form("form_modif"):
-            c1, c2 = st.columns(2)
-            with c1:
-                new_dt = st.text_input("Date & Heure", value=ligne_actuelle["Date_Heure"])
-                new_sys = st.number_input("SYS", value=int(ligne_actuelle["SYS"]))
-                new_dia = st.number_input("DIA", value=int(ligne_actuelle["DIA"]))
-            with c2:
-                new_p = st.number_input("Pouls", value=int(ligne_actuelle["Pouls"]))
-                new_g = st.number_input("Glycémie", value=float(ligne_actuelle["Glycemie"]), step=0.01)
-                new_o = st.text_input("Observations", value=ligne_actuelle["Notes"])
-            
-            if st.form_submit_button("METTRE À JOUR"):
-                # Appliquer les modifications dans le DataFrame
-                index_ligne = df_mesures[df_mesures["ID"] == id_a_modifier].index
-                df_mesures.at[index_ligne[0], "Date_Heure"] = new_dt
-                df_mesures.at[index_ligne[0], "SYS"] = new_sys
-                df_mesures.at[index_ligne[0], "DIA"] = new_dia
-                df_mesures.at[index_ligne[0], "Pouls"] = new_p
-                df_mesures.at[index_ligne[0], "Glycemie"] = new_g
-                df_mesures.at[index_ligne[0], "Notes"] = new_o
-                
-                try:
-                    conn.update(worksheet="Mesures", data=df_mesures)
-                    st.success("Modification enregistrée !")
-                    st.rerun()
-                except:
-                    st.error("Erreur lors de la synchronisation.")
-    else:
-        st.info("Aucune donnée à modifier.")
+        st.dataframe(
+            df_display.rename(columns={
+                "id": "ID", "systolique": "SYS", "diastolique": "DIA", 
+                "battements": "Pouls", "glycemie": "Glycémie", 
+                "date_heure": "Date/Heure", "notes": "Observations"
+            }), 
+            use_container_width=True,
+            hide_index=True
+        )
 
+        with st.expander("🗑️ Supprimer une ligne"):
+            to_del = st.number_input("Entrez l'ID de la ligne", min_value=1, step=1)
+            if st.button("Confirmer Suppression"):
+                conn = sqlite3.connect('suivi_houbad_v12.db')
+                conn.cursor().execute("DELETE FROM mesures WHERE id = ?", (to_del,))
+                conn.commit()
+                conn.close()
+                st.rerun()
+    else:
+        st.info("Aucune donnée.")
+
+# --- PIED DE PAGE ---
 st.divider()
 st.markdown("<h3 style='text-align: center; color: grey;'>Élaboré par Houbad Douaa</h3>", unsafe_allow_html=True)
