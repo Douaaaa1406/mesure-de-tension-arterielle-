@@ -13,10 +13,12 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 def load_all_data():
     try:
         df_m = conn.read(worksheet="Mesures", ttl="0")
+    except:
+        df_m = pd.DataFrame(columns=["ID", "SYS", "DIA", "Pouls", "Glycemie", "Date_Heure", "Notes"])
+    
+    try:
         df_i = conn.read(worksheet="Infos", ttl="0")
     except:
-        # Structure par défaut si Sheets est vide
-        df_m = pd.DataFrame(columns=["ID", "SYS", "DIA", "Pouls", "Glycemie", "Date_Heure", "Notes"])
         df_i = pd.DataFrame([
             {"Type": "Antecedents", "Contenu": ""}, 
             {"Type": "Traitements", "Contenu": ""}
@@ -25,19 +27,16 @@ def load_all_data():
 
 df_mesures, df_infos = load_all_data()
 
-# Sécurité si df_infos est mal chargé
+# Sécurité pour le contenu des textes
 if df_infos.empty or len(df_infos) < 2:
-    df_infos = pd.DataFrame([
-        {"Type": "Antecedents", "Contenu": ""}, 
-        {"Type": "Traitements", "Contenu": ""}
-    ])
+    df_infos = pd.DataFrame([{"Type": "Antecedents", "Contenu": ""}, {"Type": "Traitements", "Contenu": ""}])
 
 ant_val = df_infos.loc[df_infos["Type"] == "Antecedents", "Contenu"].values[0]
 traite_val = df_infos.loc[df_infos["Type"] == "Traitements", "Contenu"].values[0]
 
 st.title("🩺 Journal de Bord : Houbad Med")
 
-# --- SECTION 1 : DOSSIER MÉDICAL (Antécédents et Traitements) ---
+# --- SECTION 1 : DOSSIER MÉDICAL ---
 st.subheader("📋 Dossier Médical")
 col_ant, col_traite = st.columns(2)
 
@@ -73,21 +72,25 @@ with col_ajout:
         t_in = st.text_input("Heure (HH:MM)", datetime.now().strftime("%H:%M"))
         c1, c2 = st.columns(2)
         with c1:
-            s = st.number_input("SYS", 40, 250, 120)
-            b = st.number_input("Pouls", 0, 200, 70)
+            s_val = st.number_input("SYS", 40, 250, 120)
+            p_val = st.number_input("Pouls", 0, 200, 70)
         with c2:
-            di = st.number_input("DIA", 30, 150, 80)
-            g = st.number_input("Glycémie", 0.0, 5.0, 0.0, step=0.01)
-        n = st.text_input("Observations")
+            d_val = st.number_input("DIA", 30, 150, 80)
+            g_val = st.number_input("Glycémie", 0.0, 5.0, 0.0, step=0.01)
+        obs_val = st.text_input("Observations")
         if st.form_submit_button("ENREGISTRER LA MESURE"):
-            new_id = int(df_mesures["ID"].max() + 1) if not df_mesures.empty else 1
+            # Calcul du prochain ID
+            next_id = 1
+            if not df_mesures.empty and "ID" in df_mesures.columns:
+                next_id = int(pd.to_numeric(df_mesures["ID"]).max() + 1)
+            
             new_row = pd.DataFrame([{
-                "ID": new_id, "SYS": s, "DIA": di, "Pouls": b, 
-                "Glycemie": g, "Date_Heure": f"{d_in} {t_in}", "Notes": n
+                "ID": next_id, "SYS": s_val, "DIA": d_val, "Pouls": p_val, 
+                "Glycemie": g_val, "Date_Heure": f"{d_in} {t_in}", "Notes": obs_val
             }])
             df_mesures = pd.concat([df_mesures, new_row], ignore_index=True)
             conn.update(worksheet="Mesures", data=df_mesures)
-            st.success("Enregistré dans Google Sheets !")
+            st.success("Mesure enregistrée !")
             st.rerun()
 
 with col_modif:
@@ -95,44 +98,43 @@ with col_modif:
     if not df_mesures.empty:
         id_sel = st.selectbox("Choisir l'ID à corriger", df_mesures["ID"].tolist())
         ligne = df_mesures[df_mesures["ID"] == id_sel].iloc[0]
-        
         with st.form("form_edit"):
             new_dt = st.text_input("Date/Heure", value=str(ligne["Date_Heure"]))
             cc1, cc2 = st.columns(2)
             with cc1:
-                edit_s = st.number_input("SYS", value=int(ligne["SYS"]))
-                edit_di = st.number_input("DIA", value=int(ligne["DIA"]))
+                e_s = st.number_input("SYS", value=int(ligne["SYS"]))
+                e_d = st.number_input("DIA", value=int(ligne["DIA"]))
             with cc2:
-                edit_b = st.number_input("Pouls", value=int(ligne["Pouls"]))
-                edit_g = st.number_input("Glycémie", value=float(ligne["Glycemie"]))
-            edit_n = st.text_input("Note", value=str(ligne["Notes"]))
-            
+                e_p = st.number_input("Pouls", value=int(ligne["Pouls"]))
+                e_g = st.number_input("Glycémie", value=float(ligne["Glycemie"]))
+            e_n = st.text_input("Note", value=str(ligne["Notes"]))
             if st.form_submit_button("APPLIQUER LES MODIFICATIONS"):
                 idx = df_mesures[df_mesures["ID"] == id_sel].index[0]
-                df_mesures.at[idx, ["SYS", "DIA", "Pouls", "Glycemie", "Date_Heure", "Notes"]] = [
-                    edit_s, edit_di, edit_b, edit_g, new_dt, edit_n
-                ]
+                df_mesures.at[idx, ["SYS", "DIA", "Pouls", "Glycemie", "Date_Heure", "Notes"]] = [e_s, e_d, e_p, e_g, new_dt, e_n]
                 conn.update(worksheet="Mesures", data=df_mesures)
-                st.success("Modification réussie !")
+                st.success("Modifié !")
                 st.rerun()
     else:
-        st.write("Aucune donnée à modifier.")
+        st.write("Aucune donnée.")
 
 st.divider()
 
 # --- SECTION 3 : HISTORIQUE ---
-st.subheader("📋 Historique Complet (Google Sheets)")
+st.subheader("📋 Historique Complet")
 
-# Rappel visuel des catégories de tension
-# if not df_mesures.empty:
+
+
+[Image of blood pressure categories chart]
+
+
+if not df_mesures.empty:
     st.dataframe(df_mesures.iloc[::-1], use_container_width=True, hide_index=True)
-
     with st.expander("🗑️ Supprimer une ligne"):
         to_del = st.number_input("ID à supprimer", min_value=1, step=1)
         if st.button("Confirmer Suppression"):
             df_mesures = df_mesures[df_mesures["ID"] != to_del]
             conn.update(worksheet="Mesures", data=df_mesures)
-            st.success("Ligne supprimée !")
+            st.success("Supprimé !")
             st.rerun()
 
 st.markdown("<h3 style='text-align: center; color: grey;'>Élaboré par Houbad Douaa</h3>", unsafe_allow_html=True)
