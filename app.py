@@ -8,15 +8,18 @@ st.set_page_config(page_title="Suivi Santé - Houbad Med", page_icon="🩺", lay
 
 # --- INITIALISATION DE LA BASE DE DONNÉES ---
 def init_db():
-    conn = sqlite3.connect('sante_houbad_v3.db', check_same_thread=False)
+    # Création du fichier de base de données permanent
+    conn = sqlite3.connect('sante_houbad_final.db', check_same_thread=False)
     c = conn.cursor()
+    # Table des mesures
     c.execute('''CREATE TABLE IF NOT EXISTS mesures 
                  (id INTEGER PRIMARY KEY, 
                   sys INTEGER, dia INTEGER, pouls INTEGER, 
                   glycemie REAL, date_heure TEXT, notes TEXT)''')
+    # Table des informations médicales
     c.execute('''CREATE TABLE IF NOT EXISTS infos (type TEXT PRIMARY KEY, contenu TEXT)''')
     
-    # --- VOS MESURES FOURNIES (Données de base permanentes) ---
+    # --- VOS MESURES HISTORIQUES (Données permanentes) ---
     mesures_historiques = [
         (1, 175, 103, 56, 0.0, "04/03/2026 17:45", "Sans traitement; Vertige"),
         (2, 150, 100, 0,  1.33, "06/03/2026 14:10", "vertige apres prière"),
@@ -29,98 +32,117 @@ def init_db():
         (9, 113, 85,  70, 2.29, "11/03/2026 21:00", "zanidip a la priere")
     ]
     
-    # Insertion automatique si la ligne n'existe pas
+    # Insertion des mesures si elles ne sont pas déjà présentes
     for m in mesures_historiques:
         c.execute("INSERT OR IGNORE INTO mesures VALUES (?,?,?,?,?,?,?)", m)
     
+    # Initialisation des textes vides si nécessaire
     c.execute("INSERT OR IGNORE INTO infos VALUES ('ant', '')")
     c.execute("INSERT OR IGNORE INTO infos VALUES ('traite', '')")
     conn.commit()
     return conn
 
-# Connexion stable
 conn = init_db()
 
-# --- RÉCUPÉRATION ---
-def charger_data():
+# --- FONCTION DE CHARGEMENT ---
+def charger_donnees():
     df = pd.read_sql_query("SELECT * FROM mesures ORDER BY id DESC", conn)
-    ant = conn.execute("SELECT contenu FROM infos WHERE type='ant'").fetchone()[0]
-    traite = conn.execute("SELECT contenu FROM infos WHERE type='traite'").fetchone()[0]
+    # Récupération sécurisée des textes
+    ant_res = conn.execute("SELECT contenu FROM infos WHERE type='ant'").fetchone()
+    traite_res = conn.execute("SELECT contenu FROM infos WHERE type='traite'").fetchone()
+    ant = ant_res[0] if ant_res else ""
+    traite = traite_res[0] if traite_res else ""
     return df, ant, traite
 
-df_mesures, text_ant, text_traite = charger_data()
+df_mesures, text_ant, text_traite = charger_donnees()
 
 st.title("🩺 Journal de Bord : Houbad Med")
 
 # --- SECTION 1 : DOSSIER MÉDICAL ---
 st.subheader("📋 Dossier Médical")
-col_ant, col_traite = st.columns(2)
+col_a, col_t = st.columns(2)
 
-with col_ant:
-    with st.expander("👨‍👩‍👧‍👦 Antécédents", expanded=True):
+with col_a:
+    with st.expander("👨‍👩‍👧‍👦 Antécédents Médicaux", expanded=True):
         with st.form("form_ant"):
-            nouv_ant = st.text_area("Historique médical :", value=text_ant, height=100)
+            nouv_ant = st.text_area("Historique :", value=text_ant, height=100)
             if st.form_submit_button("Sauvegarder Antécédents"):
                 conn.execute("UPDATE infos SET contenu=? WHERE type='ant'", (nouv_ant,))
                 conn.commit()
+                st.success("Enregistré")
                 st.rerun()
 
-with col_traite:
-    with st.expander("💊 Traitement & Dosages", expanded=True):
+with col_t:
+    with st.expander("💊 Traitement & Grammage", expanded=True):
         with st.form("form_traite"):
-            nouv_traite = st.text_area("Médicaments actuels :", value=text_traite, height=100)
+            nouv_traite = st.text_area("Dosages :", value=text_traite, height=100)
             if st.form_submit_button("Sauvegarder Traitement"):
                 conn.execute("UPDATE infos SET contenu=? WHERE type='traite'", (nouv_traite,))
                 conn.commit()
+                st.success("Mis à jour")
                 st.rerun()
 
 st.divider()
 
-# --- SECTION 2 : SAISIE ---
+# --- SECTION 2 : SAISIE ET MODIFICATION ---
 c1, c2 = st.columns(2)
+
 with c1:
     st.subheader("➕ Ajouter une Mesure")
     with st.form("add_form", clear_on_submit=True):
-        date_c = st.text_input("Date", datetime.now().strftime("%d/%m/%Y"))
-        heure_c = st.text_input("Heure", datetime.now().strftime("%H:%M"))
-        sys_c = st.number_input("Systolique (Haut)", 40, 250, 120)
-        dia_c = st.number_input("Diastolique (Bas)", 30, 150, 80)
-        pouls_c = st.number_input("Pouls (BPM)", 0, 200, 70)
-        gly_c = st.number_input("Glycémie (g/L)", 0.0, 5.0, 0.0)
-        notes_c = st.text_input("Note / Observation")
+        d_c = st.text_input("Date", datetime.now().strftime("%d/%m/%Y"))
+        h_c = st.text_input("Heure", datetime.now().strftime("%H:%M"))
+        s_c = st.number_input("SYS (Haut)", 40, 250, 120)
+        di_c = st.number_input("DIA (Bas)", 30, 150, 80)
+        p_c = st.number_input("Pouls", 0, 200, 70)
+        g_c = st.number_input("Glycémie", 0.0, 5.0, 0.0)
+        n_c = st.text_input("Observations")
         
-        if st.form_submit_button("ENREGISTRER LA MESURE"):
+        if st.form_submit_button("ENREGISTRER"):
             cursor = conn.cursor()
             cursor.execute("SELECT MAX(id) FROM mesures")
             max_id = cursor.fetchone()[0]
             new_id = (max_id + 1) if max_id else 10
             conn.execute("INSERT INTO mesures VALUES (?,?,?,?,?,?,?)", 
-                         (new_id, sys_c, dia_c, pouls_c, gly_c, f"{date_c} {heure_c}", notes_c))
+                         (new_id, s_c, di_c, p_c, g_c, f"{d_c} {h_c}", n_c))
             conn.commit()
-            st.success("Mesure bien enregistrée !")
             st.rerun()
 
 with c2:
     st.subheader("📝 Modifier / Supprimer")
     if not df_mesures.empty:
-        id_sel = st.selectbox("Sélectionner l'ID", df_mesures["id"].tolist())
-        if st.button("🗑️ Supprimer cette ligne"):
-            conn.execute("DELETE FROM mesures WHERE id=?", (id_sel,))
-            conn.commit()
-            st.rerun()
+        id_edit = st.selectbox("Choisir l'ID", df_mesures["id"].tolist())
+        ligne_edit = df_mesures[df_mesures["id"] == id_edit].iloc[0]
+        
+        with st.form("edit_form"):
+            e_s = st.number_input("Systolique", value=int(ligne_edit["sys"]))
+            e_d = st.number_input("Diastolique", value=int(ligne_edit["dia"]))
+            e_p = st.number_input("Pouls", value=int(ligne_edit["pouls"]))
+            e_g = st.number_input("Glycémie", value=float(ligne_edit["glycemie"]))
+            e_n = st.text_input("Note", value=str(ligne_edit["notes"]))
+            
+            btn_col1, btn_col2 = st.columns(2)
+            if btn_col1.form_submit_button("✅ APPLIQUER"):
+                conn.execute("UPDATE mesures SET sys=?, dia=?, pouls=?, glycemie=?, notes=? WHERE id=?", 
+                             (e_s, e_d, e_p, e_g, e_n, id_edit))
+                conn.commit()
+                st.rerun()
+                
+            if btn_col2.form_submit_button("🗑️ SUPPRIMER"):
+                conn.execute("DELETE FROM mesures WHERE id=?", (id_edit,))
+                conn.commit()
+                st.rerun()
     else:
-        st.write("Aucune donnée.")
+        st.write("Pas de données.")
 
 st.divider()
 
-# --- SECTION 3 : AFFICHAGE ---
+# --- SECTION 3 : HISTORIQUE ---
 st.subheader("📋 Historique des Mesures")
-st.info("Référentiel : Normale < 130/80 mmHg | Hypertension > 140/90 mmHg")
-
 st.dataframe(df_mesures, use_container_width=True, hide_index=True)
 
-# Bouton de sauvegarde externe
-csv = df_mesures.to_csv(index=False).encode('utf-8')
-st.download_button("📥 Télécharger mon journal (CSV)", csv, "suivi_sante_houbad.csv", "text/csv")
+# Sauvegarde CSV
+csv_data = df_mesures.to_csv(index=False).encode('utf-8')
+st.download_button("📥 Télécharger Sauvegarde (CSV)", csv_data, "journal_sante.csv", "text/csv")
 
 st.markdown("<h3 style='text-align: center; color: grey;'>Élaboré par Houbad Douaa</h3>", unsafe_allow_html=True)
