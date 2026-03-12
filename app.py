@@ -9,7 +9,7 @@ st.set_page_config(page_title="Suivi Santé - Houbad Med", page_icon="🩺", lay
 # Connexion à Google Sheets
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- DONNÉES EXTRAITES DE VOS IMAGES (POUR REMPLIR LE VIDE) ---
+# --- DONNÉES DE TES PHOTOS (Injectées si le Sheets est vide) ---
 initial_data = [
     {"ID": 1, "SYS": 175, "DIA": 103, "Pouls": 56, "Glycemie": 0.0, "Date_Heure": "04/03/2026 17:45", "Notes": "Sans traitement; Vertige"},
     {"ID": 2, "SYS": 150, "DIA": 100, "Pouls": 0, "Glycemie": 1.33, "Date_Heure": "06/03/2026 14:10", "Notes": "vertige apres prière"},
@@ -17,12 +17,12 @@ initial_data = [
     {"ID": 4, "SYS": 150, "DIA": 100, "Pouls": 69, "Glycemie": 0.0, "Date_Heure": "06/03/2026 19:00", "Notes": "avant iftar"},
     {"ID": 5, "SYS": 154, "DIA": 98, "Pouls": 0, "Glycemie": 0.0, "Date_Heure": "06/03/2026 19:52", "Notes": "Ancienne mesure"},
     {"ID": 6, "SYS": 138, "DIA": 100, "Pouls": 68, "Glycemie": 0.0, "Date_Heure": "06/03/2026 20:30", "Notes": "Apres iftar (Zanidip)"},
-    {"ID": 7, "SYS": 113, "DIA": 85, "Pouls": 70, "Glycemie": 2.29, "Date_Heure": "11/03/2026 21:00", "Notes": "Récupérée de photo"},
-    {"ID": 8, "SYS": 133, "DIA": 90, "Pouls": 71, "Glycemie": 2.76, "Date_Heure": "06/03/2026 21:25", "Notes": "2H après Iftar"},
-    {"ID": 9, "SYS": 135, "DIA": 86, "Pouls": 63, "Glycemie": 0.0, "Date_Heure": "07/03/2026 04:56", "Notes": "Shor"}
+    {"ID": 7, "SYS": 133, "DIA": 90, "Pouls": 71, "Glycemie": 2.76, "Date_Heure": "06/03/2026 21:25", "Notes": "2H après Iftar"},
+    {"ID": 8, "SYS": 135, "DIA": 86, "Pouls": 63, "Glycemie": 0.0, "Date_Heure": "07/03/2026 04:56", "Notes": "Shor"},
+    {"ID": 9, "SYS": 113, "DIA": 85, "Pouls": 70, "Glycemie": 2.29, "Date_Heure": "11/03/2026 21:00", "Notes": "zanidip a la priere "}
 ]
 
-# --- CHARGEMENT DES DONNÉES ---
+# --- CHARGEMENT ---
 def load_all_data():
     try:
         df_m = conn.read(worksheet="Mesures", ttl="0")
@@ -34,15 +34,12 @@ def load_all_data():
     try:
         df_i = conn.read(worksheet="Infos", ttl="0")
     except:
-        df_i = pd.DataFrame([
-            {"Type": "Antecedents", "Contenu": ""}, 
-            {"Type": "Traitements", "Contenu": ""}
-        ])
+        df_i = pd.DataFrame([{"Type": "Antecedents", "Contenu": ""}, {"Type": "Traitements", "Contenu": ""}])
     return df_m, df_i
 
 df_mesures, df_infos = load_all_data()
 
-# Sécurité pour le contenu des textes
+# Sécurité textes
 if df_infos.empty or len(df_infos) < 2:
     df_infos = pd.DataFrame([{"Type": "Antecedents", "Contenu": ""}, {"Type": "Traitements", "Contenu": ""}])
 
@@ -62,7 +59,7 @@ with col_ant:
             if st.form_submit_button("Sauvegarder Antécédents"):
                 df_infos.loc[df_infos["Type"] == "Antecedents", "Contenu"] = nouveau_ant
                 conn.update(worksheet="Infos", data=df_infos)
-                st.success("Antécédents mis à jour !")
+                st.success("C'est enregistré !")
                 st.rerun()
 
 with col_traite:
@@ -93,32 +90,29 @@ with col_ajout:
             d_val = st.number_input("DIA", 30, 150, 80)
             g_val = st.number_input("Glycémie", 0.0, 5.0, 0.0, step=0.01)
         obs_val = st.text_input("Observations")
-        if st.form_submit_button("ENREGISTRER LA MESURE"):
+        if st.form_submit_button("ENREGISTRER"):
             next_id = int(pd.to_numeric(df_mesures["ID"]).max() + 1) if not df_mesures.empty else 1
-            new_row = pd.DataFrame([{
-                "ID": next_id, "SYS": s_val, "DIA": d_val, "Pouls": p_val, 
-                "Glycemie": g_val, "Date_Heure": f"{d_in} {t_in}", "Notes": obs_val
-            }])
+            new_row = pd.DataFrame([{"ID": next_id, "SYS": s_val, "DIA": d_val, "Pouls": p_val, "Glycemie": g_val, "Date_Heure": f"{d_in} {t_in}", "Notes": obs_val}])
             df_mesures = pd.concat([df_mesures, new_row], ignore_index=True)
             conn.update(worksheet="Mesures", data=df_mesures)
-            st.success("Mesure enregistrée !")
+            st.success("Ajouté !")
             st.rerun()
 
 with col_modif:
     st.subheader("📝 Modifier une donnée")
     if not df_mesures.empty:
-        id_sel = st.selectbox("Choisir l'ID à corriger", df_mesures["ID"].tolist())
+        id_sel = st.selectbox("ID à corriger", df_mesures["ID"].tolist())
         ligne = df_mesures[df_mesures["ID"] == id_sel].iloc[0]
         with st.form("form_edit"):
             new_dt = st.text_input("Date/Heure", value=str(ligne["Date_Heure"]))
             cc1, cc2 = st.columns(2)
             with cc1:
-                e_s = st.number_input("SYS", value=int(ligne["SYS"]))
-                e_d = st.number_input("DIA", value=int(ligne["DIA"]))
+                e_s = st.number_input("SYS ", value=int(ligne["SYS"]))
+                e_d = st.number_input("DIA ", value=int(ligne["DIA"]))
             with cc2:
-                e_p = st.number_input("Pouls", value=int(ligne["Pouls"]))
-                e_g = st.number_input("Glycémie", value=float(ligne["Glycemie"]))
-            e_n = st.text_input("Note", value=str(ligne["Notes"]))
+                e_p = st.number_input("Pouls ", value=int(ligne["Pouls"]))
+                e_g = st.number_input("Glycémie ", value=float(ligne["Glycemie"]))
+            e_n = st.text_input("Note ", value=str(ligne["Notes"]))
             if st.form_submit_button("APPLIQUER"):
                 idx = df_mesures[df_mesures["ID"] == id_sel].index[0]
                 df_mesures.at[idx, ["SYS", "DIA", "Pouls", "Glycemie", "Date_Heure", "Notes"]] = [e_s, e_d, e_p, e_g, new_dt, e_n]
@@ -129,13 +123,7 @@ with col_modif:
 st.divider()
 
 # --- SECTION 3 : HISTORIQUE ---
-st.subheader("📋 Historique Complet")
-
-
-
-[Image of blood pressure categories chart]
-
-
+st.subheader("📋 Historique")
 if not df_mesures.empty:
     st.dataframe(df_mesures.iloc[::-1], use_container_width=True, hide_index=True)
     with st.expander("🗑️ Supprimer une ligne"):
