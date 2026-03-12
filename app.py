@@ -15,20 +15,29 @@ def load_all_data():
         df_m = conn.read(worksheet="Mesures", ttl="0")
         df_i = conn.read(worksheet="Infos", ttl="0")
     except:
-        # Création de structures vides si les feuilles n'existent pas encore
+        # Structure par défaut si Sheets est vide
         df_m = pd.DataFrame(columns=["ID", "SYS", "DIA", "Pouls", "Glycemie", "Date_Heure", "Notes"])
-        df_i = pd.DataFrame([{"Type": "Antecedents", "Contenu": ""}, {"Type": "Traitements", "Contenu": ""}])
+        df_i = pd.DataFrame([
+            {"Type": "Antecedents", "Contenu": ""}, 
+            {"Type": "Traitements", "Contenu": ""}
+        ])
     return df_m, df_i
 
 df_mesures, df_infos = load_all_data()
 
-# Extraction des textes pour l'affichage
-ant_val = df_infos[df_infos["Type"] == "Antecedents"]["Contenu"].values[0] if not df_infos.empty else ""
-traite_val = df_infos[df_infos["Type"] == "Traitements"]["Contenu"].values[0] if not df_infos.empty else ""
+# Sécurité si df_infos est mal chargé
+if df_infos.empty or len(df_infos) < 2:
+    df_infos = pd.DataFrame([
+        {"Type": "Antecedents", "Contenu": ""}, 
+        {"Type": "Traitements", "Contenu": ""}
+    ])
 
-st.title("🩺 Journal de Bord : Houbad Med (Sauvegarde Sheets)")
+ant_val = df_infos.loc[df_infos["Type"] == "Antecedents", "Contenu"].values[0]
+traite_val = df_infos.loc[df_infos["Type"] == "Traitements", "Contenu"].values[0]
 
-# --- SECTION 1 : DOSSIER MÉDICAL ---
+st.title("🩺 Journal de Bord : Houbad Med")
+
+# --- SECTION 1 : DOSSIER MÉDICAL (Antécédents et Traitements) ---
 st.subheader("📋 Dossier Médical")
 col_ant, col_traite = st.columns(2)
 
@@ -78,7 +87,7 @@ with col_ajout:
             }])
             df_mesures = pd.concat([df_mesures, new_row], ignore_index=True)
             conn.update(worksheet="Mesures", data=df_mesures)
-            st.success("Mesure enregistrée dans Sheets !")
+            st.success("Enregistré dans Google Sheets !")
             st.rerun()
 
 with col_modif:
@@ -100,14 +109,11 @@ with col_modif:
             
             if st.form_submit_button("APPLIQUER LES MODIFICATIONS"):
                 idx = df_mesures[df_mesures["ID"] == id_sel].index[0]
-                df_mesures.at[idx, "SYS"] = edit_s
-                df_mesures.at[idx, "DIA"] = edit_di
-                df_mesures.at[idx, "Pouls"] = edit_b
-                df_mesures.at[idx, "Glycemie"] = edit_g
-                df_mesures.at[idx, "Date_Heure"] = new_dt
-                df_mesures.at[idx, "Notes"] = edit_n
+                df_mesures.at[idx, ["SYS", "DIA", "Pouls", "Glycemie", "Date_Heure", "Notes"]] = [
+                    edit_s, edit_di, edit_b, edit_g, new_dt, edit_n
+                ]
                 conn.update(worksheet="Mesures", data=df_mesures)
-                st.success("Modification synchronisée !")
+                st.success("Modification réussie !")
                 st.rerun()
     else:
         st.write("Aucune donnée à modifier.")
@@ -117,13 +123,11 @@ st.divider()
 # --- SECTION 3 : HISTORIQUE ---
 st.subheader("📋 Historique Complet (Google Sheets)")
 
-
-[Image of blood pressure categories chart]
-
-if not df_mesures.empty:
+# Rappel visuel des catégories de tension
+# if not df_mesures.empty:
     st.dataframe(df_mesures.iloc[::-1], use_container_width=True, hide_index=True)
 
-    with st.expander("🗑️ Supprimer définitivement une ligne"):
+    with st.expander("🗑️ Supprimer une ligne"):
         to_del = st.number_input("ID à supprimer", min_value=1, step=1)
         if st.button("Confirmer Suppression"):
             df_mesures = df_mesures[df_mesures["ID"] != to_del]
