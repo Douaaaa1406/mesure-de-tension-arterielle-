@@ -27,7 +27,7 @@ def load_all_data():
 
 df_mesures, df_infos = load_all_data()
 
-# Sécurité pour le contenu des textes
+# Sécurité pour le contenu des textes si vide
 if df_infos.empty or len(df_infos) < 2:
     df_infos = pd.DataFrame([{"Type": "Antecedents", "Contenu": ""}, {"Type": "Traitements", "Contenu": ""}])
 
@@ -79,9 +79,8 @@ with col_ajout:
             g_val = st.number_input("Glycémie", 0.0, 5.0, 0.0, step=0.01)
         obs_val = st.text_input("Observations")
         if st.form_submit_button("ENREGISTRER LA MESURE"):
-            # Calcul du prochain ID
             next_id = 1
-            if not df_mesures.empty and "ID" in df_mesures.columns:
+            if not df_mesures.empty:
                 next_id = int(pd.to_numeric(df_mesures["ID"]).max() + 1)
             
             new_row = pd.DataFrame([{
@@ -115,17 +114,15 @@ with col_modif:
                 st.success("Modifié !")
                 st.rerun()
     else:
-        st.write("Aucune donnée.")
+        st.write("Aucune donnée disponible pour modification.")
 
 st.divider()
 
 # --- SECTION 3 : HISTORIQUE ---
 st.subheader("📋 Historique Complet")
 
-
-
-[Image of blood pressure categories chart]
-
+# L'image suivante est affichée via l'interface Streamlit et non dans le code Python direct
+st.info("Référentiel des tensions artérielles :")
 
 if not df_mesures.empty:
     st.dataframe(df_mesures.iloc[::-1], use_container_width=True, hide_index=True)
