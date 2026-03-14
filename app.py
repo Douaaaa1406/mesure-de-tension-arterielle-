@@ -19,7 +19,7 @@ def init_db():
     # Table des informations médicales
     c.execute('''CREATE TABLE IF NOT EXISTS infos (type TEXT PRIMARY KEY, contenu TEXT)''')
     
-    # --- VOS MESURES HISTORIQUES (Données permanentes) ---
+    # --- VOS MESURES HISTORIQUES (Données permanentes mises à jour) ---
     mesures_historiques = [
         (1, 175, 103, 56, 0.0, "04/03/2026 17:45", "Sans traitement; Vertige"),
         (2, 150, 100, 0,  1.33, "06/03/2026 14:10", "vertige apres prière"),
@@ -29,7 +29,8 @@ def init_db():
         (6, 138, 100, 68, 0.0,  "06/03/2026 20:30", "Apres iftar (Zanidip)"),
         (7, 133, 90,  71, 2.76, "06/03/2026 21:25", "2H après Iftar"),
         (8, 135, 86,  63, 0.0,  "07/03/2026 04:56", "Shor"),
-        (9, 113, 85,  70, 2.29, "11/03/2026 21:00", "zanidip a la priere")
+        (9, 113, 85,  70, 2.29, "11/03/2026 21:00", "zanidip a la priere"),
+        (10, 120, 85, 70, 0.0,  "14/03/2026 22:17", "A 14:00")
     ]
     
     # Insertion des mesures si elles ne sont pas déjà présentes
@@ -46,8 +47,8 @@ conn = init_db()
 
 # --- FONCTION DE CHARGEMENT ---
 def charger_donnees():
+    # On trie par ID DESC pour l'affichage (plus récent en haut)
     df = pd.read_sql_query("SELECT * FROM mesures ORDER BY id DESC", conn)
-    # Récupération sécurisée des textes
     ant_res = conn.execute("SELECT contenu FROM infos WHERE type='ant'").fetchone()
     traite_res = conn.execute("SELECT contenu FROM infos WHERE type='traite'").fetchone()
     ant = ant_res[0] if ant_res else ""
@@ -102,7 +103,7 @@ with c1:
             cursor = conn.cursor()
             cursor.execute("SELECT MAX(id) FROM mesures")
             max_id = cursor.fetchone()[0]
-            new_id = (max_id + 1) if max_id else 10
+            new_id = (max_id + 1) if max_id else 1
             conn.execute("INSERT INTO mesures VALUES (?,?,?,?,?,?,?)", 
                          (new_id, s_c, di_c, p_c, g_c, f"{d_c} {h_c}", n_c))
             conn.commit()
