@@ -8,18 +8,15 @@ st.set_page_config(page_title="Suivi Santé - Houbad Med", page_icon="🩺", lay
 
 # --- INITIALISATION DE LA BASE DE DONNÉES ---
 def init_db():
-    # Création du fichier de base de données permanent
     conn = sqlite3.connect('sante_houbad_final.db', check_same_thread=False)
     c = conn.cursor()
-    # Table des mesures
     c.execute('''CREATE TABLE IF NOT EXISTS mesures 
                  (id INTEGER PRIMARY KEY, 
                   sys INTEGER, dia INTEGER, pouls INTEGER, 
                   glycemie REAL, date_heure TEXT, notes TEXT)''')
-    # Table des informations médicales
     c.execute('''CREATE TABLE IF NOT EXISTS infos (type TEXT PRIMARY KEY, contenu TEXT)''')
     
-    # --- VOS MESURES HISTORIQUES (Données permanentes mises à jour) ---
+    # --- VOS MESURES HISTORIQUES (Mises à jour au 16/03/2026) ---
     mesures_historiques = [
         (1, 175, 103, 56, 0.0, "04/03/2026 17:45", "Sans traitement; Vertige"),
         (2, 150, 100, 0,  1.33, "06/03/2026 14:10", "vertige apres prière"),
@@ -30,14 +27,13 @@ def init_db():
         (7, 133, 90,  71, 2.76, "06/03/2026 21:25", "2H après Iftar"),
         (8, 135, 86,  63, 0.0,  "07/03/2026 04:56", "Shor"),
         (9, 113, 85,  70, 2.29, "11/03/2026 21:00", "zanidip a la priere"),
-        (10, 120, 85, 70, 0.0,  "14/03/2026 22:17", "A 14:00")
+        (10, 123, 93, 0, 0.0, "15/03/2026 12:00", "Mesure précédente"),
+        (11, 130, 90, 0, 0.0, "16/03/2026 20:38", "Dernière mesure ajoutée")
     ]
     
-    # Insertion des mesures si elles ne sont pas déjà présentes
     for m in mesures_historiques:
         c.execute("INSERT OR IGNORE INTO mesures VALUES (?,?,?,?,?,?,?)", m)
     
-    # Initialisation des textes vides si nécessaire
     c.execute("INSERT OR IGNORE INTO infos VALUES ('ant', '')")
     c.execute("INSERT OR IGNORE INTO infos VALUES ('traite', '')")
     conn.commit()
@@ -45,9 +41,7 @@ def init_db():
 
 conn = init_db()
 
-# --- FONCTION DE CHARGEMENT ---
 def charger_donnees():
-    # On trie par ID DESC pour l'affichage (plus récent en haut)
     df = pd.read_sql_query("SELECT * FROM mesures ORDER BY id DESC", conn)
     ant_res = conn.execute("SELECT contenu FROM infos WHERE type='ant'").fetchone()
     traite_res = conn.execute("SELECT contenu FROM infos WHERE type='traite'").fetchone()
@@ -103,7 +97,7 @@ with c1:
             cursor = conn.cursor()
             cursor.execute("SELECT MAX(id) FROM mesures")
             max_id = cursor.fetchone()[0]
-            new_id = (max_id + 1) if max_id else 1
+            new_id = (max_id + 1) if max_id else 12
             conn.execute("INSERT INTO mesures VALUES (?,?,?,?,?,?,?)", 
                          (new_id, s_c, di_c, p_c, g_c, f"{d_c} {h_c}", n_c))
             conn.commit()
@@ -140,9 +134,10 @@ st.divider()
 
 # --- SECTION 3 : HISTORIQUE ---
 st.subheader("📋 Historique des Mesures")
+st.info("Référentiel : Tension Normale < 130/80 | Hypertension > 140/90")
+
 st.dataframe(df_mesures, use_container_width=True, hide_index=True)
 
-# Sauvegarde CSV
 csv_data = df_mesures.to_csv(index=False).encode('utf-8')
 st.download_button("📥 Télécharger Sauvegarde (CSV)", csv_data, "journal_sante.csv", "text/csv")
 
