@@ -31,7 +31,6 @@ def init_db():
         (11, 130, 90, 0, 0.0, "16/03/2026 20:38", "apres ftor ")
         (12, 130, 90, 0, 0.0, "18/03/2026 19:10", "avant iftar")
     ]
-    ]
     
     for m in mesures_historiques:
         c.execute("INSERT OR IGNORE INTO mesures VALUES (?,?,?,?,?,?,?)", m)
