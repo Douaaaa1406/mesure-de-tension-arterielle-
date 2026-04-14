@@ -34,7 +34,7 @@ def init_db():
         (14,135, 95, 67, 1.13, "22/03/2026 20:00", "post perfusion ssi 0.9%."), 
         (15, 140, 100, 73, 0, "01/04/2026 17:30", ""), 
         (16, 120, 82, 0, , "14/04/2026 12:18", "") 
-    ]
+        (17, 130, 90, 0, , "14/04/2026 18:00", "") ]
     
     for m in mesures_historiques:
         c.execute("INSERT OR IGNORE INTO mesures VALUES (?,?,?,?,?,?,?)", m)
